@@ -83,9 +83,79 @@ namespace Mirror.Tests.ClientSceneTests
         }
 
         [Test]
-        public void FindOrSpawnObject_SpawnsByCallingHandlerFromDictionary()
+        public void FindOrSpawnObject_SpawnHandlerCalledFromDictionary()
         {
-            Assert.Ignore();
+            const uint netId = 1003;
+            int handlerCalled = 0;
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                assetId = validPrefabGuid
+            };
+
+            GameObject createdInhandler = null;
+
+            spawnHandlers.Add(validPrefabGuid, (x) =>
+            {
+                handlerCalled++;
+                Assert.That(x, Is.EqualTo(msg));
+                createdInhandler = new GameObject("testObj", typeof(NetworkIdentity));
+                _createdObjects.Add(createdInhandler);
+                return createdInhandler;
+            });
+
+
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
+
+            Assert.IsTrue(success);
+            Assert.IsNotNull(networkIdentity);
+            Assert.That(handlerCalled, Is.EqualTo(1));
+            Assert.That(networkIdentity.gameObject, Is.EqualTo(createdInhandler), "Object returned should be the same object created by the spawn handler");
+        }
+        [Test]
+        public void FindOrSpawnObject_ErrorWhenSpawnHanlderReturnsNull()
+        {
+            const uint netId = 1003;
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                assetId = validPrefabGuid
+            };
+
+            spawnHandlers.Add(validPrefabGuid, (x) =>
+            {
+                return null;
+            });
+
+
+            LogAssert.Expect(LogType.Error, $"Spawn Handler returned null, Handler assetId '{validPrefabGuid}'");
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
+
+            Assert.IsFalse(success);
+            Assert.IsNull(networkIdentity);
+        }
+        [Test]
+        public void FindOrSpawnObject_ErrorWhenSpawnHanlderReturnsWithoutNetworkIdentity()
+        {
+            const uint netId = 1003;
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                assetId = validPrefabGuid
+            };
+
+            spawnHandlers.Add(validPrefabGuid, (x) =>
+            {
+                GameObject go = new GameObject("testObj");
+                _createdObjects.Add(go);
+                return go;
+            });
+
+            LogAssert.Expect(LogType.Error, $"Object Spawned by handler did not have a NetworkIdentity, Handler assetId '{validPrefabGuid}'");
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
+
+            Assert.IsFalse(success);
+            Assert.IsNull(networkIdentity);
         }
 
         [Test]
