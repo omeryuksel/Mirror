@@ -823,10 +823,10 @@ namespace Mirror
 
         static NetworkIdentity SpawnSceneObject(SpawnMessage msg)
         {
-            NetworkIdentity spawnedId = SpawnSceneObject(msg.sceneId);
+            NetworkIdentity spawnedId = getAndRemoveSceneObject(msg.sceneId);
             if (spawnedId == null)
             {
-                logger.LogError("Spawn scene object not found for " + msg.sceneId.ToString("X") + " SpawnableObjects.Count=" + spawnableObjects.Count);
+                logger.LogError($"Spawn scene object not found for {msg.sceneId.ToString("X")} SpawnableObjects.Count={spawnableObjects.Count}");
 
                 // dump the whole spawnable objects dict for easier debugging
                 if (logger.LogEnabled())
@@ -840,14 +840,13 @@ namespace Mirror
             return spawnedId;
         }
 
-        static NetworkIdentity SpawnSceneObject(ulong sceneId)
+        static NetworkIdentity getAndRemoveSceneObject(ulong sceneId)
         {
             if (spawnableObjects.TryGetValue(sceneId, out NetworkIdentity identity))
             {
                 spawnableObjects.Remove(sceneId);
                 return identity;
             }
-            logger.LogWarning("Could not find scene object with sceneid:" + sceneId.ToString("X"));
             return null;
         }
 
