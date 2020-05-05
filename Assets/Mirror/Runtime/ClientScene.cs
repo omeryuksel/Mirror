@@ -689,7 +689,7 @@ namespace Mirror
             NetworkIdentity.spawned.Clear();
         }
 
-        static void ApplySpawnPayload(NetworkIdentity identity, SpawnMessage msg)
+        internal static void ApplySpawnPayload(NetworkIdentity identity, SpawnMessage msg)
         {
             if (msg.assetId != Guid.Empty)
                 identity.assetId = msg.assetId;
@@ -732,28 +732,43 @@ namespace Mirror
 
         internal static void OnSpawn(SpawnMessage msg)
         {
-            if (msg.assetId == Guid.Empty && msg.sceneId == 0)
-            {
-                logger.LogError("OnObjSpawn netId: " + msg.netId + " has invalid asset Id");
-                return;
-            }
             if (logger.LogEnabled()) logger.Log($"Client spawn handler instantiating netId={msg.netId} assetID={msg.assetId} sceneId={msg.sceneId} pos={msg.position}");
 
-            // was the object already spawned?
-            NetworkIdentity identity = GetExistingObject(msg.netId);
-
-            if (identity == null)
+            if (FindOrSpawnObject(msg, out NetworkIdentity identity))
             {
-                identity = msg.sceneId == 0 ? SpawnPrefab(msg) : SpawnSceneObject(msg);
+                ApplySpawnPayload(identity, msg);
             }
+        }
+
+        /// <summary>
+        /// Finds Existing Object with NetId or spawns a new one using AssetId or sceneId
+        /// </summary>
+        internal static bool FindOrSpawnObject(SpawnMessage msg, out NetworkIdentity identity)
+        {
+            // was the object already spawned?
+            identity = GetExistingObject(msg.netId);
+
+            // if found, return early
+            if (identity != null)
+            {
+                return true;
+            }
+
+            if (msg.assetId == Guid.Empty && msg.sceneId == 0)
+            {
+                logger.LogError($"OnSpawn message with netId '{msg.netId}' has no AssetId or sceneId");
+                return false;
+            }
+
+            identity = msg.sceneId == 0 ? SpawnPrefab(msg) : SpawnSceneObject(msg);
 
             if (identity == null)
             {
                 logger.LogError($"Could not spawn assetId={msg.assetId} scene={msg.sceneId} netId={msg.netId}");
-                return;
+                return false;
             }
 
-            ApplySpawnPayload(identity, msg);
+            return true;
         }
 
         static NetworkIdentity GetExistingObject(uint netid)
