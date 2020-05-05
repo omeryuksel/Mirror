@@ -7,17 +7,10 @@ namespace Mirror.Tests.ClientSceneTests
 {
     public class ClientSceneTests_OnSpawn : ClientSceneTestsBase
     {
-        [SetUp]
-        public void Setup()
-        {
-
-        }
-
         [TearDown]
         public override void TearDown()
         {
-
-
+            NetworkIdentity.spawned.Clear();
             base.TearDown();
         }
 
@@ -49,6 +42,10 @@ namespace Mirror.Tests.ClientSceneTests
 
             Assert.IsTrue(success);
             Assert.That(found, Is.EqualTo(existing));
+
+
+            // cleanup
+            GameObject.DestroyImmediate(found.gameObject);
         }
 
         [Test]
@@ -69,6 +66,8 @@ namespace Mirror.Tests.ClientSceneTests
         {
             const uint netId = 1002;
 
+            prefabs.Add(validPrefabGuid, validPrefab);
+
             bool success = ClientScene.FindOrSpawnObject(new SpawnMessage
             {
                 netId = netId,
@@ -77,7 +76,10 @@ namespace Mirror.Tests.ClientSceneTests
             }, out NetworkIdentity found);
 
             Assert.IsTrue(success);
-            Assert.That(found.name, Is.EqualTo(validPrefab.name + " (clone)"));
+            Assert.That(found.name, Is.EqualTo(validPrefab.name + "(Clone)"));
+
+            // cleanup
+            GameObject.DestroyImmediate(found.gameObject);
         }
 
         [Test]
