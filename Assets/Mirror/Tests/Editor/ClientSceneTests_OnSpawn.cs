@@ -129,6 +129,7 @@ namespace Mirror.Tests.ClientSceneTests
 
 
             LogAssert.Expect(LogType.Error, $"Spawn Handler returned null, Handler assetId '{validPrefabGuid}'");
+            LogAssert.Expect(LogType.Error, $"Could not spawn assetId={msg.assetId} scene={msg.sceneId} netId={msg.netId}");
             bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
 
             Assert.IsFalse(success);
@@ -152,6 +153,7 @@ namespace Mirror.Tests.ClientSceneTests
             });
 
             LogAssert.Expect(LogType.Error, $"Object Spawned by handler did not have a NetworkIdentity, Handler assetId '{validPrefabGuid}'");
+            LogAssert.Expect(LogType.Error, $"Could not spawn assetId={msg.assetId} scene={msg.sceneId} netId={msg.netId}");
             bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
 
             Assert.IsFalse(success);
