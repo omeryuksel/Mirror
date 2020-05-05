@@ -794,10 +794,16 @@ namespace Mirror
                 GameObject obj = handler(msg);
                 if (obj == null)
                 {
-                    logger.LogWarning("Client spawn handler for " + msg.assetId + " returned null");
+                    logger.LogError($"Spawn Handler returned null, Handler assetId '{msg.assetId}'");
                     return null;
                 }
-                return obj.GetComponent<NetworkIdentity>();
+                NetworkIdentity identity = obj.GetComponent<NetworkIdentity>();
+                if (identity == null)
+                {
+                    logger.LogError($"Object Spawned by handler did not have a NetworkIdentity, Handler assetId '{msg.assetId}'");
+                    return null;
+                }
+                return identity;
             }
             logger.LogError("Failed to spawn server object, did you forget to add it to the NetworkManager? assetId=" + msg.assetId + " netId=" + msg.netId);
             return null;
