@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -7,10 +8,12 @@ namespace Mirror.Tests.ClientSceneTests
 {
     public class ClientSceneTests_OnSpawn : ClientSceneTestsBase
     {
+        Dictionary<uint, NetworkIdentity> spawned => NetworkIdentity.spawned;
+
         [TearDown]
         public override void TearDown()
         {
-            NetworkIdentity.spawned.Clear();
+            spawned.Clear();
             base.TearDown();
         }
 
@@ -22,7 +25,7 @@ namespace Mirror.Tests.ClientSceneTests
             GameObject go = new GameObject();
             NetworkIdentity existing = go.AddComponent<NetworkIdentity>();
             existing.netId = netId;
-            NetworkIdentity.spawned.Add(netId, existing);
+            spawned.Add(netId, existing);
 
             SpawnMessage msg = new SpawnMessage
             {
@@ -39,7 +42,7 @@ namespace Mirror.Tests.ClientSceneTests
         }
 
         [Test]
-        public void FindOrSpawnObject_GivesErrorWhenNoExistingAndAssetIdAndSceneIdAreBothEmpty()
+        public void FindOrSpawnObject_ErrorWhenNoExistingAndAssetIdAndSceneIdAreBothEmpty()
         {
             const uint netId = 1001;
             SpawnMessage msg = new SpawnMessage
@@ -50,8 +53,10 @@ namespace Mirror.Tests.ClientSceneTests
             };
 
             LogAssert.Expect(LogType.Error, $"OnSpawn message with netId '{netId}' has no AssetId or sceneId");
-            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity found);
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
 
+            Assert.IsFalse(success);
+            Assert.IsNull(networkIdentity);
         }
 
         [Test]
@@ -264,7 +269,7 @@ namespace Mirror.Tests.ClientSceneTests
         }
 
         [Test]
-        public void FindOrSpawnObject_GivesErrorWhenSceneIdIsNotInSpawnableObjectsDictionary()
+        public void FindOrSpawnObject_ErrorWhenSceneIdIsNotInSpawnableObjectsDictionary()
         {
             const uint netId = 1004;
             const int sceneId = 100021;
@@ -273,7 +278,6 @@ namespace Mirror.Tests.ClientSceneTests
                 netId = netId,
                 sceneId = sceneId,
             };
-
 
             LogAssert.Expect(LogType.Error, $"Spawn scene object not found for {msg.sceneId.ToString("X")} SpawnableObjects.Count={spawnableObjects.Count}");
             LogAssert.Expect(LogType.Error, $"Could not spawn assetId={msg.assetId} scene={msg.sceneId} netId={msg.netId}");
@@ -285,11 +289,282 @@ namespace Mirror.Tests.ClientSceneTests
 
 
         [Test]
-        public void ApplyPayload()
+        public void ApplyPayload_AppliesTransform()
+        {
+            const uint netId = 1000;
+
+            GameObject go = new GameObject();
+            _createdObjects.Add(go);
+
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+
+            Vector3 position = new Vector3(10, 0, 20);
+            Quaternion rotation = Quaternion.Euler(0, 45, 0);
+            Vector3 scale = new Vector3(1.5f, 1.5f, 1.5f);
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                isLocalPlayer = false,
+                isOwner = false,
+                sceneId = 0,
+                assetId = Guid.Empty,
+                // use local values for VR support
+                position = position,
+                rotation = rotation,
+                scale = scale,
+
+                payload = default,
+            };
+
+            ClientScene.ApplySpawnPayload(identity, msg);
+
+            Assert.That(identity.transform.position, Is.EqualTo(position));
+            // use angle because of floating point numbers
+            // only need to check if rotations are approximatly equal
+            Assert.That(Quaternion.Angle(identity.transform.rotation, rotation), Is.LessThan(0.0001f));
+            Assert.That(identity.transform.localScale, Is.EqualTo(scale));
+        }
+
+        [Test]
+        public void ApplyPayload_AppliesLocalValuesToTransform()
+        {
+            const uint netId = 1000;
+            GameObject parent = new GameObject();
+            _createdObjects.Add(parent);
+            parent.transform.position = new Vector3(100, 20, 0);
+            parent.transform.rotation = Quaternion.LookRotation(Vector3.left);
+            parent.transform.localScale = Vector3.one * 2;
+
+            GameObject go = new GameObject();
+            go.transform.parent = parent.transform;
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+
+            Vector3 position = new Vector3(10, 0, 20);
+            Quaternion rotation = Quaternion.Euler(0, 45, 0);
+            Vector3 scale = new Vector3(1.5f, 1.5f, 1.5f);
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                isLocalPlayer = false,
+                isOwner = false,
+                sceneId = 0,
+                assetId = Guid.Empty,
+                // use local values for VR support
+                position = position,
+                rotation = rotation,
+                scale = scale,
+
+                payload = default,
+            };
+
+            ClientScene.ApplySpawnPayload(identity, msg);
+
+            Assert.That(identity.transform.localPosition, Is.EqualTo(position));
+            // use angle because of floating point numbers
+            // only need to check if rotations are approximatly equal
+            Assert.That(Quaternion.Angle(identity.transform.localRotation, rotation), Is.LessThan(0.0001f));
+            Assert.That(identity.transform.localScale, Is.EqualTo(scale));
+        }
+
+        [Test]
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ApplyPayload_AppliesAuthority(bool isOwner)
+        {
+            const uint netId = 1000;
+
+            GameObject go = new GameObject();
+            _createdObjects.Add(go);
+
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                isLocalPlayer = false,
+                isOwner = isOwner,
+                sceneId = 0,
+                assetId = Guid.Empty,
+                // use local values for VR support
+                position = Vector3.zero,
+                rotation = Quaternion.identity,
+                scale = Vector3.one,
+
+                payload = default,
+            };
+
+            // set to oposite to make sure it is changed
+            identity.hasAuthority = !isOwner;
+
+            ClientScene.ApplySpawnPayload(identity, msg);
+
+            Assert.That(identity.hasAuthority, Is.EqualTo(isOwner));
+        }
+
+        [Test]
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ApplyPayload_EnablesObject(bool startActive)
+        {
+            const uint netId = 1000;
+
+            GameObject go = new GameObject();
+            _createdObjects.Add(go);
+
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+            go.SetActive(startActive);
+
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                isLocalPlayer = false,
+                isOwner = false,
+                sceneId = 0,
+                assetId = Guid.Empty,
+                // use local values for VR support
+                position = Vector3.zero,
+                rotation = Quaternion.identity,
+                scale = Vector3.one,
+
+                payload = default,
+            };
+
+            ClientScene.ApplySpawnPayload(identity, msg);
+
+            Assert.IsTrue(identity.gameObject.activeSelf);
+        }
+
+        [Test]
+        public void ApplyPayload_SetsAssetId()
+        {
+            const uint netId = 1000;
+
+            GameObject go = new GameObject();
+            _createdObjects.Add(go);
+
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+
+            Guid guid = Guid.NewGuid();
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                isLocalPlayer = false,
+                isOwner = false,
+                sceneId = 0,
+                assetId = guid,
+                // use local values for VR support
+                position = Vector3.zero,
+                rotation = Quaternion.identity,
+                scale = Vector3.one,
+
+                payload = default,
+            };
+
+            ClientScene.ApplySpawnPayload(identity, msg);
+
+            Assert.IsTrue(identity.gameObject.activeSelf);
+
+            Assert.That(identity.assetId, Is.EqualTo(guid));
+        }
+
+        [Test]
+        public void ApplyPayload_DoesNotSetAssetIdToEmpty()
+        {
+            const uint netId = 1000;
+
+            GameObject go = new GameObject();
+            _createdObjects.Add(go);
+
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+            Guid guid = Guid.NewGuid();
+            identity.assetId = guid;
+
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                isLocalPlayer = false,
+                isOwner = false,
+                sceneId = 0,
+                assetId = Guid.Empty,
+                // use local values for VR support
+                position = Vector3.zero,
+                rotation = Quaternion.identity,
+                scale = Vector3.one,
+
+                payload = default,
+            };
+
+            ClientScene.ApplySpawnPayload(identity, msg);
+
+            Assert.That(identity.assetId, Is.EqualTo(guid), "AssetId should not have changed");
+        }
+
+        [Test]
+        public void ApplyPayload_SendsDataToNetworkBehaviourDeserialize()
         {
             Assert.Ignore();
-            // Applies Payload Correctly
-            // Applies Payload to existing object (if one exists)
+        }
+
+        [Test]
+        public void ApplyPayload_LocalPlayer()
+        {
+            Assert.Ignore();
+        }
+
+        [Test]
+        public void ApplyPayload_isFinishSpawning()
+        {
+            Assert.Ignore();
+        }
+
+
+        [Test]
+        public void OnSpawn_SpawnsAndAppliesPayload()
+        {
+            const int netId = 1;
+            Debug.Assert(spawned.Count == 0, "There should be no spawned objects before test");
+
+
+            Vector3 position = new Vector3(30, 20, 10);
+            Quaternion rotation = Quaternion.Euler(0, 0, 90);
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                assetId = validPrefabGuid,
+                position = position,
+                rotation = rotation
+            };
+            prefabs.Add(validPrefabGuid, validPrefab);
+
+            ClientScene.OnSpawn(msg);
+
+            Assert.That(spawned.Count, Is.EqualTo(1));
+            Assert.IsTrue(spawned.ContainsKey(netId));
+
+            NetworkIdentity identity = spawned[netId];
+            Assert.IsNotNull(identity);
+            Assert.That(identity.name, Is.EqualTo(validPrefab.name + "(Clone)"));
+            Assert.That(identity.transform.position, Is.EqualTo(position));
+            // use angle because of floating point numbers
+            // only need to check if rotations are approximatly equal
+            Assert.That(Quaternion.Angle(identity.transform.rotation, rotation), Is.LessThan(0.0001f));
+        }
+
+        [Test]
+        public void OnSpawn_GiveNoExtraErrorsWhenPrefabIsntSpawned()
+        {
+            const int netId = 20033;
+            Debug.Assert(spawned.Count == 0, "There should be no spawned objects before test");
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+            };
+
+            // Check for log that FindOrSpawnObject gives, and make sure there are no other error logs
+            LogAssert.Expect(LogType.Error, $"OnSpawn message with netId '{netId}' has no AssetId or sceneId");
+            ClientScene.OnSpawn(msg);
+
+            Assert.That(spawned, Is.Empty);
         }
     }
 }
