@@ -1,11 +1,54 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 
 namespace Mirror.Tests.ClientSceneTests
 {
+    public class FakeNetworkConnection : NetworkConnectionToClient
+    {
+        public FakeNetworkConnection() : base(1)
+        {
+        }
+
+        public override string address => "Test";
+
+        public override void Disconnect()
+        {
+            // nothing
+        }
+
+        internal override bool Send(ArraySegment<byte> segment, int channelId = 0)
+        {
+            return true;
+        }
+    }
+
+    public class PayloadTestBehaviour : NetworkBehaviour
+    {
+        public int value;
+        public Vector3 direction;
+
+        public override bool OnSerialize(NetworkWriter writer, bool initialState)
+        {
+            base.OnSerialize(writer, initialState);
+
+            writer.WriteInt32(value);
+            writer.WriteVector3(direction);
+
+            return true;
+        }
+        public override void OnDeserialize(NetworkReader reader, bool initialState)
+        {
+            base.OnDeserialize(reader, initialState);
+
+            value = reader.ReadInt32();
+            direction = reader.ReadVector3();
+        }
+    }
+
     public class ClientSceneTests_OnSpawn : ClientSceneTestsBase
     {
         Dictionary<uint, NetworkIdentity> spawned => NetworkIdentity.spawned;
@@ -503,18 +546,103 @@ namespace Mirror.Tests.ClientSceneTests
         public void ApplyPayload_SendsDataToNetworkBehaviourDeserialize()
         {
             Assert.Ignore();
+
+
+            // use PayloadTestBehaviour
         }
 
         [Test]
-        public void ApplyPayload_LocalPlayer()
+        public void ApplyPayload_LocalPlayerAddsIdentityToConnection()
         {
-            Assert.Ignore();
+            Debug.Assert(ClientScene.localPlayer == null, "LocalPlayer should be null before this test");
+            const uint netId = 1000;
+
+            GameObject go = new GameObject();
+            _createdObjects.Add(go);
+
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                isLocalPlayer = true,
+                isOwner = true,
+                sceneId = 0,
+                assetId = Guid.Empty,
+                // use local values for VR support
+                position = Vector3.zero,
+                rotation = Quaternion.identity,
+                scale = Vector3.one,
+
+                payload = default,
+            };
+
+            PropertyInfo readyConnProperty = typeof(ClientScene).GetProperty(nameof(ClientScene.readyConnection));
+            readyConnProperty.SetValue(null, new FakeNetworkConnection());
+
+            ClientScene.ApplySpawnPayload(identity, msg);
+
+            Assert.That(ClientScene.localPlayer, Is.EqualTo(identity));
+            Assert.That(ClientScene.readyConnection.identity, Is.EqualTo(identity));
         }
 
         [Test]
-        public void ApplyPayload_isFinishSpawning()
+        public void ApplyPayload_LocalPlayerWarningWhenNoReadyConnection()
+        {
+            Debug.Assert(ClientScene.localPlayer == null, "LocalPlayer should be null before this test");
+            const uint netId = 1000;
+
+            GameObject go = new GameObject();
+            _createdObjects.Add(go);
+
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                isLocalPlayer = true,
+                isOwner = true,
+                sceneId = 0,
+                assetId = Guid.Empty,
+                // use local values for VR support
+                position = Vector3.zero,
+                rotation = Quaternion.identity,
+                scale = Vector3.one,
+
+                payload = default,
+            };
+
+
+            LogAssert.Expect(LogType.Warning, "No ready connection found for setting player controller during InternalAddPlayer");
+            ClientScene.ApplySpawnPayload(identity, msg);
+
+            Assert.That(ClientScene.localPlayer, Is.EqualTo(identity));
+        }
+
+        [Test]
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ApplyPayload_isSpawnFinished(bool isSpawnFinished)
         {
             Assert.Ignore();
+
+
+
+            const uint netId = 1000;
+            GameObject go = new GameObject();
+            _createdObjects.Add(go);
+
+            NetworkIdentity identity = go.AddComponent<NetworkIdentity>();
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+            };
+
+
+            FieldInfo isSpawnFinishedField = typeof(ClientScene).GetField("isSpawnFinished", BindingFlags.Static | BindingFlags.NonPublic);
+            isSpawnFinishedField.SetValue(null, isSpawnFinished);
+
+            ClientScene.ApplySpawnPayload(identity, msg);
         }
 
 
