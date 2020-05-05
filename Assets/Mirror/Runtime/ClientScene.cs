@@ -223,7 +223,7 @@ namespace Mirror
 
             if (found && prefab == null)
             {
-                logger.LogError($"Prefab in dictionary was null for assetId '{assetId}'. If you delete or unload prefab make sure to unregister it too.");
+                logger.LogError($"Prefab in dictionary was null for assetId '{assetId}'. If you delete or unload the prefab make sure to unregister it from ClientScene too.");
                 return false;
             }
 
