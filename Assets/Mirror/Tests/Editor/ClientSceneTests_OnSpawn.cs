@@ -35,10 +35,11 @@ namespace Mirror.Tests.ClientSceneTests
             existing.netId = netId;
             NetworkIdentity.spawned.Add(netId, existing);
 
-            bool success = ClientScene.FindOrSpawnObject(new SpawnMessage
+            SpawnMessage msg = new SpawnMessage
             {
                 netId = netId
-            }, out NetworkIdentity found);
+            };
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity found);
 
             Assert.IsTrue(success);
             Assert.That(found, Is.EqualTo(existing));
@@ -52,34 +53,91 @@ namespace Mirror.Tests.ClientSceneTests
         public void FindOrSpawnObject_GivesErrorWhenNoExistingAndAssetIdAndSceneIdAreBothEmpty()
         {
             const uint netId = 1001;
-            LogAssert.Expect(LogType.Error, $"OnSpawn message with netId '{netId}' has no AssetId or sceneId");
-            ClientScene.OnSpawn(new SpawnMessage
+            SpawnMessage msg = new SpawnMessage
             {
                 assetId = new Guid(),
                 sceneId = 0,
                 netId = netId
-            });
+            };
+
+            LogAssert.Expect(LogType.Error, $"OnSpawn message with netId '{netId}' has no AssetId or sceneId");
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity found);
+
         }
 
         [Test]
         public void FindOrSpawnObject_SpawnsFromPrefabDictionary()
         {
             const uint netId = 1002;
-
-            prefabs.Add(validPrefabGuid, validPrefab);
-
-            bool success = ClientScene.FindOrSpawnObject(new SpawnMessage
+            SpawnMessage msg = new SpawnMessage
             {
                 netId = netId,
                 assetId = validPrefabGuid
 
-            }, out NetworkIdentity found);
+            };
+
+            prefabs.Add(validPrefabGuid, validPrefab);
+
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
 
             Assert.IsTrue(success);
-            Assert.That(found.name, Is.EqualTo(validPrefab.name + "(Clone)"));
+            Assert.IsNotNull(networkIdentity);
+            Assert.That(networkIdentity.name, Is.EqualTo(validPrefab.name + "(Clone)"));
 
             // cleanup
-            GameObject.DestroyImmediate(found.gameObject);
+            GameObject.DestroyImmediate(networkIdentity.gameObject);
+        }
+
+        [Test]
+        public void FindOrSpawnObject_ErrorWhenPrefabInNullInDictionary()
+        {
+            const uint netId = 1002;
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                assetId = validPrefabGuid
+            };
+
+            // could happen if the prefab is destroyed or unloaded
+            prefabs.Add(validPrefabGuid, null);
+
+            LogAssert.Expect(LogType.Error, $"Prefab in dictionary was null for assetId '{msg.assetId}'. If you delete or unload the prefab make sure to unregister it from ClientScene too.");
+            LogAssert.Expect(LogType.Error, $"Failed to spawn server object, did you forget to add it to the NetworkManager? assetId={msg.assetId} netId={msg.netId}");
+            LogAssert.Expect(LogType.Error, $"Could not spawn assetId={msg.assetId} scene={msg.sceneId} netId={msg.netId}");
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
+
+
+            Assert.IsFalse(success);
+            Assert.IsNull(networkIdentity);
+        }
+
+        [Test]
+        public void FindOrSpawnObject_SpawnsFromPrefabIfBothPrefabAndHandlerExists()
+        {
+            const uint netId = 1003;
+            int handlerCalled = 0;
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                assetId = validPrefabGuid
+            };
+
+            prefabs.Add(validPrefabGuid, validPrefab);
+            spawnHandlers.Add(validPrefabGuid, (x) =>
+            {
+                handlerCalled++;
+                GameObject go = new GameObject("testObj", typeof(NetworkIdentity));
+                _createdObjects.Add(go);
+                return go;
+            });
+
+
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
+
+            Assert.IsTrue(success);
+            Assert.IsNotNull(networkIdentity);
+            Assert.That(networkIdentity.name, Is.EqualTo(validPrefab.name + "(Clone)"));
+            Assert.That(handlerCalled, Is.EqualTo(0), "Handler should not have been called");
         }
 
         [Test]
@@ -112,6 +170,7 @@ namespace Mirror.Tests.ClientSceneTests
             Assert.That(handlerCalled, Is.EqualTo(1));
             Assert.That(networkIdentity.gameObject, Is.EqualTo(createdInhandler), "Object returned should be the same object created by the spawn handler");
         }
+
         [Test]
         public void FindOrSpawnObject_ErrorWhenSpawnHanlderReturnsNull()
         {
@@ -127,8 +186,7 @@ namespace Mirror.Tests.ClientSceneTests
                 return null;
             });
 
-
-            LogAssert.Expect(LogType.Error, $"Spawn Handler returned null, Handler assetId '{validPrefabGuid}'");
+            LogAssert.Expect(LogType.Error, $"Spawn Handler returned null, Handler assetId '{msg.assetId}'");
             LogAssert.Expect(LogType.Error, $"Could not spawn assetId={msg.assetId} scene={msg.sceneId} netId={msg.netId}");
             bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
 
