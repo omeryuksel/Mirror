@@ -14,17 +14,6 @@ namespace Mirror.Tests.ClientSceneTests
             base.TearDown();
         }
 
-        // Applies Payload Correctly
-        // Applies Payload to existing object (if one exists
-        // Spawns Prefab from prefab Dictionary
-        // Spawns Prefab from Handler
-        // Spawns Scene object from spawnableObjects Dictionary
-        // gives errors when...
-        //   guid and sceneId is empty
-        //   cant find prefab/handler with assetId
-        //   cant find object with sceneId
-        //   failed to spawn prefab
-
 
         [Test]
         public void FindOrSpawnObject_FindExistingObject()
@@ -272,6 +261,35 @@ namespace Mirror.Tests.ClientSceneTests
             Assert.IsTrue(success);
             Assert.IsNotNull(networkIdentity);
             Assert.That(networkIdentity, Is.EqualTo(sceneObject));
+        }
+
+        [Test]
+        public void FindOrSpawnObject_GivesErrorWhenSceneIdIsNotInSpawnableObjectsDictionary()
+        {
+            const uint netId = 1004;
+            const int sceneId = 100021;
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                sceneId = sceneId,
+            };
+
+
+            LogAssert.Expect(LogType.Error, $"Spawn scene object not found for {msg.sceneId.ToString("X")} SpawnableObjects.Count={spawnableObjects.Count}");
+            LogAssert.Expect(LogType.Error, $"Could not spawn assetId={msg.assetId} scene={msg.sceneId} netId={msg.netId}");
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
+
+            Assert.IsFalse(success);
+            Assert.IsNull(networkIdentity);
+        }
+
+
+        [Test]
+        public void ApplyPayload()
+        {
+            Assert.Ignore();
+            // Applies Payload Correctly
+            // Applies Payload to existing object (if one exists)
         }
     }
 }
