@@ -218,16 +218,60 @@ namespace Mirror.Tests.ClientSceneTests
             Assert.IsNull(networkIdentity);
         }
 
-        [Test]
-        public void FindOrSpawnObject_SpawnsFromSpawnableObjectsDictionary()
+        NetworkIdentity CreateSceneObject(ulong sceneId)
         {
-            Assert.Ignore();
+            GameObject runtimeObject = new GameObject("Runtime GameObject");
+            NetworkIdentity networkIdentity = runtimeObject.AddComponent<NetworkIdentity>();
+            // set sceneId to zero as it is set in onvalidate (does not set id at runtime)
+            networkIdentity.sceneId = sceneId;
+
+            _createdObjects.Add(runtimeObject);
+            spawnableObjects.Add(sceneId, networkIdentity);
+
+            return networkIdentity;
+        }
+
+        [Test]
+        public void FindOrSpawnObject_UsesSceneIdToSpawnFromSpawnableObjectsDictionary()
+        {
+            const uint netId = 1003;
+            const int sceneId = 100020;
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                sceneId = sceneId
+            };
+
+            NetworkIdentity sceneObject = CreateSceneObject(sceneId);
+
+
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
+
+            Assert.IsTrue(success);
+            Assert.IsNotNull(networkIdentity);
+            Assert.That(networkIdentity, Is.EqualTo(sceneObject));
         }
 
         [Test]
         public void FindOrSpawnObject_SpawnsUsingSceneIdInsteadOfAssetId()
         {
-            Assert.Ignore();
+            const uint netId = 1003;
+            const int sceneId = 100020;
+            SpawnMessage msg = new SpawnMessage
+            {
+                netId = netId,
+                sceneId = sceneId,
+                assetId = validPrefabGuid
+            };
+
+            prefabs.Add(validPrefabGuid, validPrefab);
+            NetworkIdentity sceneObject = CreateSceneObject(sceneId);
+
+            bool success = ClientScene.FindOrSpawnObject(msg, out NetworkIdentity networkIdentity);
+
+            Assert.IsTrue(success);
+            Assert.IsNotNull(networkIdentity);
+            Assert.That(networkIdentity, Is.EqualTo(sceneObject));
         }
     }
 }
