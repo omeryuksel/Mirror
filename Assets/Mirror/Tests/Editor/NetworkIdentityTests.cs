@@ -125,7 +125,7 @@ namespace Mirror.Tests
         {
             public int called;
             public bool valuePassed;
-            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) {}
+            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) { }
             public override bool OnCheckObserver(NetworkConnection conn) { return true; }
             public override void OnSetHostVisibility(bool visible)
             {
@@ -152,38 +152,38 @@ namespace Mirror.Tests
         {
             public int called;
             public NetworkConnection valuePassed;
-            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) {}
+            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) { }
             public override bool OnCheckObserver(NetworkConnection conn)
             {
                 ++called;
                 valuePassed = conn;
                 throw new Exception("some exception");
             }
-            public override void OnSetHostVisibility(bool visible) {}
+            public override void OnSetHostVisibility(bool visible) { }
         }
 
         class CheckObserverTrueNetworkBehaviour : NetworkVisibility
         {
             public int called;
-            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) {}
+            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) { }
             public override bool OnCheckObserver(NetworkConnection conn)
             {
                 ++called;
                 return true;
             }
-            public override void OnSetHostVisibility(bool visible) {}
+            public override void OnSetHostVisibility(bool visible) { }
         }
 
         class CheckObserverFalseNetworkBehaviour : NetworkVisibility
         {
             public int called;
-            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) {}
+            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) { }
             public override bool OnCheckObserver(NetworkConnection conn)
             {
                 ++called;
                 return false;
             }
-            public override void OnSetHostVisibility(bool visible) {}
+            public override void OnSetHostVisibility(bool visible) { }
         }
 
         class SerializeTest1NetworkBehaviour : NetworkBehaviour
@@ -250,13 +250,13 @@ namespace Mirror.Tests
             {
                 observers.Add(observer);
             }
-            public override void OnSetHostVisibility(bool visible) {}
+            public override void OnSetHostVisibility(bool visible) { }
         }
 
         class RebuildEmptyObserversNetworkBehaviour : NetworkVisibility
         {
             public override bool OnCheckObserver(NetworkConnection conn) { return true; }
-            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) {}
+            public override void OnRebuildObservers(HashSet<NetworkConnection> observers, bool initialize) { }
             public int hostVisibilityCalled;
             public bool hostVisibilityValue;
             public override void OnSetHostVisibility(bool visible)
@@ -431,6 +431,56 @@ namespace Mirror.Tests
 
             // did it work?
             Assert.That(identity.assetId, Is.EqualTo(guid));
+        }
+
+        [Test]
+        public void SetAssetId_GivesWarningIfOneExists()
+        {
+            if (identity.assetId == Guid.Empty)
+            {
+                identity.assetId = Guid.NewGuid();
+            }
+
+            Guid guid1 = identity.assetId;
+
+            // assign a guid
+            Guid guid2 = Guid.NewGuid();
+            LogAssert.Expect(LogType.Warning, $"Replacing existing AssetId on NetworkIdentity '{identity.name}', old assetId '{guid1.ToString("N")}', new assetId '{guid2.ToString("N")}'");
+            identity.assetId = guid2;
+
+            // guid was changed
+            Assert.That(identity.assetId, Is.EqualTo(guid2));
+        }
+
+        [Test]
+        public void SetAssetId_GivesErrorForEmptyGuid()
+        {
+            if (identity.assetId == Guid.Empty)
+            {
+                identity.assetId = Guid.NewGuid();
+            }
+
+            Guid guid1 = identity.assetId;
+
+            // assign a guid
+            Guid guid2 = new Guid();
+            LogAssert.Expect(LogType.Error, $"Can not set AssetId to empty guid on NetworkIdentity '{identity.name}', old assetId '{guid1.ToString("N")}'");
+            identity.assetId = guid2;
+
+            // guid was NOT changed
+            Assert.That(identity.assetId, Is.EqualTo(guid1));
+        }
+        [Test]
+        public void SetAssetId_DoesNotGiveErrorIfBothOldAndNewAreEmpty()
+        {
+            Debug.Assert(identity.assetId == Guid.Empty, "assetId needs to be empty at the start of this test");
+            // assign a guid
+            Guid guid2 = new Guid();
+            // expect no errors
+            identity.assetId = guid2;
+
+            // guid was still empty
+            Assert.That(identity.assetId, Is.EqualTo(Guid.Empty));
         }
 
         [Test]
