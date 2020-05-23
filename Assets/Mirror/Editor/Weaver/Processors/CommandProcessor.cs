@@ -71,6 +71,8 @@ namespace Mirror.Weaver
             // writer
             cmdWorker.Append(cmdWorker.Create(OpCodes.Ldloc_0));
             cmdWorker.Append(cmdWorker.Create(OpCodes.Ldc_I4, ca.GetField("channel", 0)));
+            bool ignoreAuthority = ca.GetField("ignoreAuthority", false);
+            cmdWorker.Append(cmdWorker.Create(ignoreAuthority ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0));
             cmdWorker.Append(cmdWorker.Create(OpCodes.Call, Weaver.sendCommandInternal));
 
             NetworkBehaviourProcessor.WriteRecycleWriter(cmdWorker);
