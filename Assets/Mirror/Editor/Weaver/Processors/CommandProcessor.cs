@@ -33,7 +33,7 @@ namespace Mirror.Weaver
             This way we do not need to modify the code anywhere else,  and this works
             correctly in dependent assemblies
         */
-        public static MethodDefinition ProcessCommandCall(TypeDefinition td, MethodDefinition md, CustomAttribute ca)
+        public static MethodDefinition ProcessCommandCall(TypeDefinition td, MethodDefinition md, CustomAttribute commandAttr)
         {
             MethodDefinition cmd = MethodProcessor.SubstituteMethod(td, md, "Call" + md.Name);
 
@@ -70,8 +70,8 @@ namespace Mirror.Weaver
             cmdWorker.Append(cmdWorker.Create(OpCodes.Ldstr, cmdName));
             // writer
             cmdWorker.Append(cmdWorker.Create(OpCodes.Ldloc_0));
-            cmdWorker.Append(cmdWorker.Create(OpCodes.Ldc_I4, ca.GetField("channel", 0)));
-            bool ignoreAuthority = ca.GetField("ignoreAuthority", false);
+            cmdWorker.Append(cmdWorker.Create(OpCodes.Ldc_I4, commandAttr.GetField("channel", 0)));
+            bool ignoreAuthority = commandAttr.GetField("ignoreAuthority", false);
             cmdWorker.Append(cmdWorker.Create(ignoreAuthority ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0));
             cmdWorker.Append(cmdWorker.Create(OpCodes.Call, Weaver.sendCommandInternal));
 
@@ -120,7 +120,7 @@ namespace Mirror.Weaver
             return cmd;
         }
 
-        public static bool ProcessMethodsValidateCommand(MethodDefinition md, CustomAttribute ca)
+        public static bool ProcessMethodsValidateCommand(MethodDefinition md, CustomAttribute commandAttr)
         {
             if (!md.Name.StartsWith("Cmd"))
             {
@@ -136,7 +136,7 @@ namespace Mirror.Weaver
 
             // validate
             return NetworkBehaviourProcessor.ProcessMethodsValidateFunction(md) &&
-                   NetworkBehaviourProcessor.ProcessMethodsValidateParameters(md, ca);
+                   NetworkBehaviourProcessor.ProcessMethodsValidateParameters(md, commandAttr);
         }
     }
 }
