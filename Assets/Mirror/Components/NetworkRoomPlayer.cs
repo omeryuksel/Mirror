@@ -58,7 +58,7 @@ namespace Mirror
                 room.roomSlots.Add(this);
                 room.RecalculateRoomPlayerIndices();
 
-                OnClientEnterRoom();
+                room.CallOnClientEnterRoom();
             }
             else
                 logger.LogError("RoomPlayer could not find a NetworkRoomManager. The RoomPlayer requires a NetworkRoomManager object to function. Make sure that there is one in the scene.");

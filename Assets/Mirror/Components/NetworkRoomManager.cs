@@ -196,7 +196,7 @@ namespace Mirror
             }
         }
 
-        void CallOnClientEnterRoom()
+        public void CallOnClientEnterRoom()
         {
             OnRoomClientEnter();
             foreach (NetworkRoomPlayer player in roomSlots)
@@ -440,7 +440,6 @@ namespace Mirror
         public override void OnClientConnect(NetworkConnection conn)
         {
             OnRoomClientConnect(conn);
-            CallOnClientEnterRoom();
             base.OnClientConnect(conn);
         }
 
