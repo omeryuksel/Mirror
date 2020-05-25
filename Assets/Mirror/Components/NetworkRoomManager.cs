@@ -194,7 +194,7 @@ namespace Mirror
             OnRoomServerPlayersReady();
         }
 
-        public void CallOnClientEnterRoom()
+        internal void CallOnClientEnterRoom()
         {
             OnRoomClientEnter();
             foreach (NetworkRoomPlayer player in roomSlots)
